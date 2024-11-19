@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reconhecimento Facial com Azure Face API</title>
+    <script>
+        async function analyzeImage() {
+            const imageUrl = "https://simpleslente.com.br/cdn/shop/files/Guia-de-Rosto_Redondo.jpg"; // URL da imagem fornecida
+            const endpoint = "https://congnitiverapha22.cognitiveservices.azure.com/face/v1.0/detect"; // Seu endpoint"; // Seu endpoint
+            const subscriptionKey = "a4f715d358eb425bbd98a5f83afd967d"; // Sua chave de API
+
+            // Somente detectar o rosto (sem features adicionais)
+            const params = new URLSearchParams({
+                "returnFaceId": "false", // Não retornar faceId, apenas detectar rostos
+                "returnFaceLandmarks": "false" // Não retornar landmarks
+            });
+
+            const url = `${endpoint}?${params}`;
+
+            // Requisição para a API do Azure
+            const response = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Ocp-Apim-Subscription-Key": subscriptionKey
+                },
+                body: JSON.stringify({ url: imageUrl }) // Enviando a URL da imagem para análise
+            });
+
+            // Tratamento da resposta
+            if (!response.ok) {
+                const errorMessage = await response.text();
+                document.getElementById("result").innerText = `Erro: ${errorMessage}`;
+                return;
+            }
+
+            // Exibindo o resultado da API
+            const result = await response.json();
+            document.getElementById("result").innerText = JSON.stringify(result, null, 2);
+        }
+    </script>
+</head>
+<body>
+    <h1>Reconhecimento Facial com Azure Face API</h1>
+    <p>A URL da imagem foi pré-definida:</p>
+    <button onclick="analyzeImage()">Analisar Imagem</button>
+    
+    <h2>Resultado:</h2>
+    <pre id="result"></pre>
+</body>
+</html>
