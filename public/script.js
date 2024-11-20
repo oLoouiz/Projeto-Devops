@@ -1,115 +1,86 @@
 document.getElementById('uploadForm').addEventListener('submit', async function (e) {
     e.preventDefault(); // Previne o comportamento padrão do formulário
 
-    // Obtém o arquivo de imagem do input
+    // Obtém os dados do formulário
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const interest = document.getElementById('interest').value;
     const fileInput = document.getElementById('imageFile');
     const file = fileInput.files[0];
+    const documentFile = document.getElementById('document').files[0];
 
-    // Verifica se um arquivo foi selecionado
-    if (!file) {
-        document.getElementById('result').innerText = "Por favor, selecione uma imagem para enviar.";
+    // Verifica se os campos obrigatórios foram preenchidos
+    if (!email || !password || !interest || !file || !documentFile) {
+        document.getElementById('result').innerText = "Por favor, preencha todos os campos e selecione os arquivos.";
         return;
     }
 
     // URL do blob storage
     const blobUrl = "https://armazenamentoblob123.blob.core.windows.net/meu-container/"; // Atualizado para incluir o nome correto do container
-
-    // SAS Token gerado
     const sasToken = "sp=racw&st=2024-11-19T03:23:50Z&se=2024-12-25T11:23:50Z&sv=2022-11-02&sr=c&sig=1Lt8TgweEzDi6baeDkSFVwSZoCFzN27eGcg1%2FVCrg8c%3D"; // Substitua pela SAS Token gerada
 
-    // URL completa para upload com codificação do nome do arquivo
-    const uploadUrl = blobUrl + file.name + "?" + sasToken;
+    // Envia os arquivos para o Blob Storage (imagem do rosto e documento)
+    const uploadImageUrl = blobUrl + encodeURIComponent(file.name) + "?" + sasToken;
+    const uploadDocUrl = blobUrl + encodeURIComponent(documentFile.name) + "?" + sasToken;
+
+    // Cabeçalhos para upload de arquivos
+    const headers = {
+        "Content-Type": file.type,
+        "x-ms-blob-type": "BlockBlob"
+    };
 
     try {
-        // Cria os cabeçalhos, incluindo o tipo do conteúdo e o tipo de blob
-        const headers = {
-            "Content-Type": file.type,   // Cabeçalho Content-Type baseado no tipo do arquivo
-            "x-ms-blob-type": "BlockBlob" // Cabeçalho obrigatório para Azure
-        };
-
-        // Exibindo a mensagem de carregamento enquanto a requisição é feita
-        document.getElementById('result').innerText = "Enviando imagem para o Azure...";
-
-        // Envia o arquivo diretamente para o Blob Storage
-        const response = await fetch(uploadUrl, {
+        // Envia imagem do rosto para o Blob Storage
+        const imgResponse = await fetch(uploadImageUrl, {
             method: 'PUT',
             headers: headers,
             body: file
         });
 
-        if (response.ok) {
-            // Se o upload for bem-sucedido, obtém a URL pública do blob
-            const uploadedImageUrl = blobUrl + encodeURIComponent(file.name);
-
-            console.log('Imagem enviada com sucesso:', uploadedImageUrl);
-
-            // Agora você pode usar essa URL para análise facial
-            processFaceAnalysis(uploadedImageUrl);
-        } else {
-            console.error('Falha no upload:', response.statusText);
-            document.getElementById('result').innerText = 'Falha no upload do arquivo.';
+        if (!imgResponse.ok) {
+            document.getElementById('result').innerText = 'Falha ao enviar a imagem do rosto.';
+            return;
         }
-    } catch (error) {
-        console.error('Erro ao enviar o arquivo:', error);
-        document.getElementById('result').innerText = 'Erro ao enviar o arquivo.';
-    }
-});
 
-async function processFaceAnalysis(imageUrl) {
-    // URL da API de análise facial
-    const endpoint = "https://brazilsouth.api.cognitive.microsoft.com/face/v1.0/detect";
-    const subscriptionKey = "d5b0d1bacd4140d887429a948b974584";  // Sua chave de API
-
-    const params = new URLSearchParams({
-        "returnFaceId": "false",
-        "returnFaceLandmarks": "false"
-    });
-
-    try {
-        // Exibindo a mensagem de carregamento enquanto a requisição é feita
-        document.getElementById('result').innerText = "Enviando imagem para análise...";
-
-        const response = await fetch(endpoint + "?" + params.toString(), {
-            method: 'POST',
-            headers: {
-                'Ocp-Apim-Subscription-Key': subscriptionKey,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ url: imageUrl })
+        // Envia documento para o Blob Storage
+        const docResponse = await fetch(uploadDocUrl, {
+            method: 'PUT',
+            headers: headers,
+            body: documentFile
         });
 
+        if (!docResponse.ok) {
+            document.getElementById('result').innerText = 'Falha ao enviar o documento.';
+            return;
+        }
+
+        // URL pública da imagem e do documento no Blob
+        const uploadedImageUrl = blobUrl + encodeURIComponent(file.name);
+        const uploadedDocUrl = blobUrl + encodeURIComponent(documentFile.name);
+
+        // Envia os dados do formulário para a API
+        const response = await fetch('https://apiparadatabase.azurewebsites.net/api/insertUsuario', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                email: email,
+                password: password,
+                interest: interest,
+                faceImage: uploadedImageUrl,
+                documentImage: uploadedDocUrl
+            })
+        });
+
+        const result = await response.json();
         if (response.ok) {
-            const result = await response.json();
-            if (result.length > 0) {
-                document.getElementById('result').innerText = "É um rosto!";
-                
-
-
-
-
-
-
-            } else {
-                document.getElementById('result').innerText = "Não é um rosto.";
-
-
-
-
-
-
-
-
-            }
+            document.getElementById('result').innerText = result.body;
         } else {
-            const errorDetail = await response.text();
-            console.error("Erro na API:", errorDetail);
-            document.getElementById('result').innerText = `Erro ao enviar os dados para análise facial. Detalhes: ${errorDetail}`;
+            document.getElementById('result').innerText = 'Erro ao enviar os dados para a API.';
         }
     } catch (error) {
-        console.error('Erro ao enviar os dados para análise facial:', error);
+        console.error('Erro ao enviar os dados:', error);
         document.getElementById('result').innerText = 'Erro ao enviar os dados.';
     }
-
-
-
-}
+});
